@@ -27,6 +27,7 @@
 #include "canopen_proxy_driver/node_interfaces/node_canopen_proxy_driver.hpp"
 
 static constexpr int kLoopPeriodMS = 100;
+static constexpr int kLoopWaitCount = 10;
 static constexpr double kCommandValue = 1.0;
 
 namespace
@@ -166,15 +167,20 @@ controller_interface::CallbackReturn CanopenProxyController::on_configure(
       RCLCPP_WARN(logger, "Failed to set NMT reset command");
     }
 
-    while (rclcpp::ok())
+    auto wait_count = kLoopWaitCount;
+    while (rclcpp::ok() && wait_count > 0)
     {
-      const auto reset_cmd_value =
-        command_interfaces_[CommandInterfaces::NMT_RESET].get_optional<double>();
-      if (reset_cmd_value && std::isnan(*reset_cmd_value))
+      const auto reset_fbk =
+        command_interfaces_[CommandInterfaces::NMT_RESET_FBK].get_optional<double>();
+      if (reset_fbk && !std::isnan(*reset_fbk))
       {
         break;
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(kLoopPeriodMS));
+      wait_count--;
+    }
+    if(wait_count <= 0) {
+      RCLCPP_WARN(logger, "NMT reset not acknowledged.");
     }
 
     // report success
@@ -209,15 +215,21 @@ controller_interface::CallbackReturn CanopenProxyController::on_configure(
       RCLCPP_WARN(logger, "Failed to send command for NMT start service");
     }
 
-    while (rclcpp::ok())
+    auto wait_count = kLoopWaitCount;
+    while (rclcpp::ok() && wait_count > 0)
     {
-      const auto reset_fbk =
+      const auto start_fbk =
         command_interfaces_[CommandInterfaces::NMT_START_FBK].get_optional<double>();
-      if (reset_fbk && !std::isnan(*reset_fbk))
+      if (start_fbk && !std::isnan(*start_fbk))
       {
         break;
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(kLoopPeriodMS));
+      wait_count--;
+    }
+    if(wait_count <= 0 )
+    {
+      RCLCPP_WARN(logger, "NMT Start not acknowledged.");
     }
 
     // report success
