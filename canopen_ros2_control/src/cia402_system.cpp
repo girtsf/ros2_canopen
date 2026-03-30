@@ -301,13 +301,13 @@ hardware_interface::return_type Cia402System::write(
     // reset node nmt
     if (it->second.nmt_state.reset_command())
     {
-      motion_controller_driver->reset_node_nmt_command();
+      it->second.nmt_state.reset_fbk = motion_controller_driver->reset_node_nmt_command();
     }
 
     // start nmt
     if (it->second.nmt_state.start_command())
     {
-      motion_controller_driver->start_node_nmt_command();
+      it->second.nmt_state.start_fbk = motion_controller_driver->start_node_nmt_command();
     }
 
     // tpdo data one shot mechanism
