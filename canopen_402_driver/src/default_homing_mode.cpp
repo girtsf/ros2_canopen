@@ -64,10 +64,14 @@ bool DefaultHomingMode::executeHoming()
     std::chrono::steady_clock::now() + std::chrono::seconds(1);
   // ensure homing is not running
   std::unique_lock lock(mutex_);
-  if (!cond_.wait_until(
-        lock, prepare_time, masked_status_not_equal<MASK_Error | MASK_Reached, 0>(status_)))
-  {
-    return error("could not prepare homing");
+
+  if (hmode != 35)
+  {  // mode 35 does not move, just copies offset to position
+    if (!cond_.wait_until(
+          lock, prepare_time, masked_status_not_equal<MASK_Error | MASK_Reached, 0>(status_)))
+    {
+      return error("could not prepare homing");
+    }
   }
   if (status_ & MASK_Error)
   {
