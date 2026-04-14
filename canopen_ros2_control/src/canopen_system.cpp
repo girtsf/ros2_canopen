@@ -281,6 +281,7 @@ hardware_interface::return_type CanopenSystem::read(
 
   // rpdo has a queue of messages, we read the latest one
 
+  auto retcode = hardware_interface::return_type::OK;
   for (const auto & [node_id, canopen_data] : canopen_data_)
   {
     if (canopen_data.emcy_data.error_code != 0)
@@ -293,10 +294,11 @@ hardware_interface::return_type CanopenSystem::read(
         canopen_data.emcy_data.original_emcy.msef[0], canopen_data.emcy_data.original_emcy.msef[1],
         canopen_data.emcy_data.original_emcy.msef[2], canopen_data.emcy_data.original_emcy.msef[3],
         canopen_data.emcy_data.original_emcy.msef[4]);
+      retcode = hardware_interface::return_type::ERROR;
     }
   }
 
-  return hardware_interface::return_type::OK;
+  return retcode;
 }
 
 hardware_interface::return_type CanopenSystem::write(
