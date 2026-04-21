@@ -132,4 +132,33 @@ std::future<bool> LelyMasterBridge::async_write_nmt(uint8_t id, uint8_t command)
   nmt_promise.set_value(true);
   return nmt_promise.get_future();
 }
+
+std::future<bool> LelyMasterBridge::async_send_raw_frame(const can_msg & msg)
+{
+  auto promise = std::make_shared<std::promise<bool>>();
+  auto fut = promise->get_future();
+
+  // lely stores a pointer to the can_msg and reads it asynchronously from
+  // the CAN executor thread, so we own a copy on the heap and keep it
+  // alive via the completion lambda's capture. submit_write internally
+  // heap-allocates a self-deleting CanChannelWriteWrapper.
+  auto msg_owned = std::make_shared<can_msg>(msg);
+
+  chan_.submit_write(
+    *msg_owned, this->GetExecutor(),
+    [promise, msg_owned](std::error_code ec)
+    {
+      if (ec)
+      {
+        promise->set_exception(
+          std::make_exception_ptr(std::system_error(ec, "async_send_raw_frame")));
+      }
+      else
+      {
+        promise->set_value(true);
+      }
+    });
+
+  return fut;
+}
 }  // namespace ros2_canopen

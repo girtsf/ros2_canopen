@@ -17,6 +17,7 @@
 #define LELY_MASTER_BRIDGE_HPP
 
 #include <lely/ev/loop.hpp>
+#include <lely/io2/can.hpp>
 #include <lely/io2/posix/poll.hpp>
 #include "lely/coapp/master.hpp"
 
@@ -49,6 +50,7 @@ class LelyMasterBridge : public lely::canopen::AsyncMaster
   bool running;                      ///< Bool to indicate whether an sdo call is running
   std::condition_variable sdo_cond;  ///< Condition variable to sync service calls (one at a time)
   uint8_t node_id;                   ///< Node id of the master
+  lely::io::CanChannelBase & chan_;  ///< Reference to the CAN channel owned by the master node
 
 public:
   /**
@@ -64,7 +66,9 @@ public:
   LelyMasterBridge(
     ev_exec_t * exec, lely::io::TimerBase & timer, lely::io::CanChannelBase & chan,
     const std::string & dcf_txt, const std::string & dcf_bin = "", uint8_t id = (uint8_t)255U)
-  : lely::canopen::AsyncMaster(exec, timer, chan, dcf_txt, dcf_bin, id), node_id(id)
+  : lely::canopen::AsyncMaster(exec, timer, chan, dcf_txt, dcf_bin, id),
+    node_id(id),
+    chan_(chan)
   {
   }
 
@@ -99,6 +103,30 @@ public:
    *
    */
   std::future<bool> async_write_nmt(uint8_t id, uint8_t command);
+
+  /**
+   * @brief Asynchronously transmit a raw CAN frame on the master's channel.
+   *
+   * The frame is dispatched on the master's CAN executor, so this is
+   * thread-safe with respect to other bridge operations (SDO, NMT, PDO).
+   * The returned future resolves to true on successful transmission, or
+   * carries a std::system_error on failure.
+   *
+   * Intended for cases where the standard CANopen abstractions (SDO, PDO,
+   * NMT, EMCY) do not apply — e.g. manufacturer-specific broadcast frames.
+   * Raw frames bypass the object dictionary; PDO and OD write-back
+   * callbacks are not triggered.
+   *
+   * The caller is responsible for the frame contents, including any
+   * `can_msg` id flags (extended identifier, RTR, etc.).
+   *
+   * @param [in] msg            CAN frame to send. Copied; the caller does
+   *                            not need to keep the buffer alive after
+   *                            this call returns.
+   * @return std::future<bool>  A future that indicates whether the frame
+   *                            was successfully transmitted.
+   */
+  std::future<bool> async_send_raw_frame(const can_msg & msg);
 
   template <typename T>
   void submit_write_sdo(uint8_t id, uint16_t idx, uint8_t subidx, T value)
