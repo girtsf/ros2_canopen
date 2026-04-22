@@ -362,14 +362,47 @@ bool Motor402::handleInit()
     (it->second)();
   }
   RCLCPP_INFO(rclcpp::get_logger("canopen_402_driver"), "Init: Read State");
+  // Force a real SDO read of the statusword so state_handler_ sees the
+  // drive's actual current state, not Lely's local-OD cache. At process
+  // startup the cache is pre-populated from the EDS default (e.g. 0x0708
+  // for AMC FlexPro, which decodes as Fault). TPDOs only refresh the
+  // cache on sw *change*, so if the drive hasn't changed state since the
+  // previous session, readState() via universal_get_value returns the
+  // EDS default forever and switchState below drives the wrong transitions.
+  {
+    uint16_t sw = 0;
+    if (!driver->template sync_sdo_read_typed<uint16_t>(
+          get_channel_index(status_word_entry_index), 0x0, sw, std::chrono::milliseconds(1000)))
+    {
+      std::cout << "Init: SDO read of 0x6041 failed" << std::endl;
+      return false;
+    }
+    state_handler_.read(sw);
+    status_word_.store(sw);
+  }
   if (!readState())
   {
     std::cout << "Could not read motor state" << std::endl;
     return false;
   }
+  // Force a real SDO read of the controlword too, so control_word_
+  // matches what the drive is actually commanded with. Same reason as the
+  // statusword read above: universal_get_value would just return the
+  // stale local-OD cache (pre-populated from the EDS default), which
+  // doesn't reflect reality. If the subsequent switchState(Op_Enable)
+  // short-circuits (drive already enabled), control_word_ then carries
+  // the drive's real state bits instead of a guess — handleWrite won't
+  // send "Disable Voltage" by accident.
   {
+    uint16_t cw = 0;
+    if (!driver->template sync_sdo_read_typed<uint16_t>(
+          get_channel_index(control_word_entry_index), 0x0, cw, std::chrono::milliseconds(1000)))
+    {
+      std::cout << "Init: SDO read of 0x6040 failed" << std::endl;
+      return false;
+    }
     std::scoped_lock lock(cw_mutex_);
-    control_word_ = 0;
+    control_word_ = cw;
     start_fault_reset_ = true;
   }
   RCLCPP_INFO(rclcpp::get_logger("canopen_402_driver"), "Init: Enable");

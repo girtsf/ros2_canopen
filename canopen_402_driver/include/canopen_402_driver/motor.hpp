@@ -269,11 +269,11 @@ private:
   bool switchMode(uint16_t mode);
   bool switchState(const State402::InternalState & target);
 
-  std::atomic<uint16_t> status_word_;
-  uint16_t control_word_;
+  std::atomic<uint16_t> status_word_{0};
+  uint16_t control_word_{0};
   std::mutex cw_mutex_;
-  std::atomic<bool> start_fault_reset_;
-  std::atomic<State402::InternalState> target_state_;
+  std::atomic<bool> start_fault_reset_{false};
+  std::atomic<State402::InternalState> target_state_{State402::Unknown};
 
   State402 state_handler_;
 
