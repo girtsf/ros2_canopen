@@ -137,7 +137,7 @@ void LelyDriverBridge::OnRpdoWrite(uint16_t idx, uint8_t subidx) noexcept
     return;
   }
   uint8_t co_def = (uint8_t)sub->getType();
-  uint32_t data = 0;
+  uint64_t data = 0;
   switch (co_def)
   {
     case CO_DEFTYPE_BOOLEAN:
@@ -187,6 +187,34 @@ void LelyDriverBridge::OnRpdoWrite(uint16_t idx, uint8_t subidx) noexcept
       std::scoped_lock<std::mutex> lck(this->dictionary_mutex_);
       sub->setVal<CO_DEFTYPE_INTEGER32>((int32_t)rpdo_mapped[idx][subidx]);
       std::memcpy(&data, &sub->getVal<CO_DEFTYPE_INTEGER32>(), 4);
+      break;
+    }
+    case CO_DEFTYPE_UNSIGNED48:
+    case CO_DEFTYPE_INTEGER48:
+    {
+      // TODO: 48-bit RPDO is currently broken. Casting rpdo_mapped[idx][subidx] to (u)int48_t
+      // dispatches to Lely's RpdoRead<(u)int48_t>, which throws SdoError 0x08000000 from
+      // co_dev_up_req -> co_sub_default_up_ind -> co_sdo_req_up_val. Suspected root cause is a
+      // storage (8 bytes) vs wire (6 bytes) size mismatch in canopen_alias handling.
+      std::cerr << "WARNING: 48-bit RPDO is not supported; publishing"
+                << " EDS default value for index=0x" << std::hex << idx << " subindex=" << std::dec
+                << (unsigned int)subidx << std::endl;
+      std::scoped_lock<std::mutex> lck(this->dictionary_mutex_);
+      std::memcpy(&data, &sub->getVal<CO_DEFTYPE_INTEGER48>(), 8);
+      break;
+    }
+    case CO_DEFTYPE_UNSIGNED64:
+    {
+      std::scoped_lock<std::mutex> lck(this->dictionary_mutex_);
+      sub->setVal<CO_DEFTYPE_UNSIGNED64>((uint64_t)rpdo_mapped[idx][subidx]);
+      std::memcpy(&data, &sub->getVal<CO_DEFTYPE_UNSIGNED64>(), 8);
+      break;
+    }
+    case CO_DEFTYPE_INTEGER64:
+    {
+      std::scoped_lock<std::mutex> lck(this->dictionary_mutex_);
+      sub->setVal<CO_DEFTYPE_INTEGER64>((int64_t)rpdo_mapped[idx][subidx]);
+      std::memcpy(&data, &sub->getVal<CO_DEFTYPE_INTEGER64>(), 8);
       break;
     }
     default:
@@ -271,6 +299,26 @@ std::future<bool> LelyDriverBridge::async_sdo_write(COData data)
         this->submit_write<int32_t>(data);
         break;
       }
+      case CO_DEFTYPE_UNSIGNED48:
+      {
+        this->submit_write<lely::canopen::uint48_t>(data);
+        break;
+      }
+      case CO_DEFTYPE_INTEGER48:
+      {
+        this->submit_write<lely::canopen::int48_t>(data);
+        break;
+      }
+      case CO_DEFTYPE_UNSIGNED64:
+      {
+        this->submit_write<uint64_t>(data);
+        break;
+      }
+      case CO_DEFTYPE_INTEGER64:
+      {
+        this->submit_write<int64_t>(data);
+        break;
+      }
       default:
         std::cerr << "Unsupported CO_DEFTYPE: " << std::hex << (unsigned int)co_def << std::endl;
         break;
@@ -345,6 +393,22 @@ std::future<COData> LelyDriverBridge::async_sdo_read(COData data)
     if (co_def == CO_DEFTYPE_INTEGER32)
     {
       this->submit_read<int32_t>(data);
+    }
+    if (co_def == CO_DEFTYPE_UNSIGNED48)
+    {
+      this->submit_read<lely::canopen::uint48_t>(data);
+    }
+    if (co_def == CO_DEFTYPE_INTEGER48)
+    {
+      this->submit_read<lely::canopen::int48_t>(data);
+    }
+    if (co_def == CO_DEFTYPE_UNSIGNED64)
+    {
+      this->submit_read<uint64_t>(data);
+    }
+    if (co_def == CO_DEFTYPE_INTEGER64)
+    {
+      this->submit_read<int64_t>(data);
     }
   }
   catch (lely::canopen::SdoError & e)
@@ -447,11 +511,56 @@ void LelyDriverBridge::tpdo_transmit(COData data)
         sub->setVal<CO_DEFTYPE_INTEGER32>(val);
         break;
       }
+      case CO_DEFTYPE_UNSIGNED48:
+      {
+        uint64_t raw;
+        std::memcpy(&raw, &data.data_, sizeof(uint64_t));
+        // Wrap in uint48_t for tpdo_mapped (Lely uses canopen_traits to size
+        // the wire), but pass the underlying uint64 to setVal — COVal<N>
+        // accepts only one user-defined conversion in the implicit chain.
+        tpdo_mapped[data.index_][data.subindex_] = lely::canopen::uint48_t(raw);
+        std::scoped_lock<std::mutex> lck(this->dictionary_mutex_);
+        sub->setVal<CO_DEFTYPE_UNSIGNED48>(raw);
+        break;
+      }
+      case CO_DEFTYPE_INTEGER48:
+      {
+        int64_t raw;
+        std::memcpy(&raw, &data.data_, sizeof(int64_t));
+        // Sign-extend the 48-bit value before serializing to the wire so
+        // negative I48 values round-trip correctly.
+        if (raw & (INT64_C(1) << 47))
+        {
+          raw |= ~((INT64_C(1) << 48) - 1);
+        }
+        tpdo_mapped[data.index_][data.subindex_] = lely::canopen::int48_t(raw);
+        std::scoped_lock<std::mutex> lck(this->dictionary_mutex_);
+        sub->setVal<CO_DEFTYPE_INTEGER48>(raw);
+        break;
+      }
+      case CO_DEFTYPE_UNSIGNED64:
+      {
+        uint64_t val;
+        std::memcpy(&val, &data.data_, sizeof(uint64_t));
+        tpdo_mapped[data.index_][data.subindex_] = val;
+        std::scoped_lock<std::mutex> lck(this->dictionary_mutex_);
+        sub->setVal<CO_DEFTYPE_UNSIGNED64>(val);
+        break;
+      }
+      case CO_DEFTYPE_INTEGER64:
+      {
+        int64_t val;
+        std::memcpy(&val, &data.data_, sizeof(int64_t));
+        tpdo_mapped[data.index_][data.subindex_] = val;
+        std::scoped_lock<std::mutex> lck(this->dictionary_mutex_);
+        sub->setVal<CO_DEFTYPE_INTEGER64>(val);
+        break;
+      }
       default:
         std::cout << "async_pdo_write: id=" << (unsigned int)get_id() << " index=0x" << std::hex
                   << (unsigned int)data.index_ << " subindex=" << (unsigned int)data.subindex_
                   << " type=" << std::hex << (unsigned int)co_def
-                  << " data:" << (uint32_t)data.data_
+                  << " data:" << (uint64_t)data.data_
                   << "TYPE NOT IMPLEMENTED - DATA WILL NOT BE WRTITTEN!!" << std::endl;
         break;
     }

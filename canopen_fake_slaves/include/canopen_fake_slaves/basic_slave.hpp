@@ -173,6 +173,32 @@ protected:
    */
   void OnWrite(uint16_t idx, uint8_t subidx) noexcept override
   {
+    // Mirror UNSIGNED64 RPDO 0x4005 -> TPDO-mapped 0x4006 so the 64-bit PDO
+    // round-trip test in canopen_tests can verify the high bits.
+    if (idx == 0x4005)
+    {
+      (*this)[0x4006][0] = (*this)[0x4005][0].Get<uint64_t>();
+      this->TpdoEvent(1);
+      return;
+    }
+
+    // Mirror INTEGER48 RPDO 0x4007 -> TPDO-mapped 0x4008 for the 48-bit
+    // signed PDO round-trip test (verifies sign extension across the wire).
+    if (idx == 0x4007)
+    {
+      (*this)[0x4008][0] = (*this)[0x4007][0].Get<lely::canopen::int48_t>();
+      this->TpdoEvent(2);
+      return;
+    }
+
+    // GetValue's fallback Get<uint32_t> would throw for the 48/64-bit test
+    // entries on 0x4004 (subindexes 8..11). The 0x4001 mirror only matters
+    // for the 32-bit PDO test, so skip it for those indexes.
+    if (idx == 0x4004 && subidx >= 8)
+    {
+      return;
+    }
+
     (*this)[0x4001][0] = this->GetValue(idx, subidx);
     this->TpdoEvent(0);
 

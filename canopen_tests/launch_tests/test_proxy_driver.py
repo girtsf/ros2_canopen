@@ -166,6 +166,29 @@ class TestSDO(unittest.TestCase):
         """Tests SDO writing to an UNSIGNED32 data object."""
         self._sdo_write_read_round_trip(0x4004, 7, 100)
 
+    def test_sdo_write_unsigned48(self):
+        """Tests SDO writing to an UNSIGNED48 data object."""
+        self._sdo_write_read_round_trip(0x4004, 8, 0xCAFE0000F00D)
+
+    def test_sdo_write_signed48(self):
+        """Tests SDO writing to an INTEGER48 data object (sign extension)."""
+        # CORead/COWrite.data is uint64 on the wire; encode signed value
+        # sign-extended to 64 bits so the driver layer round-trips correctly.
+        value = -(1 << 40)  # -2**40
+        sign_extended = value & ((1 << 64) - 1)
+        self._sdo_write_read_round_trip(0x4004, 9, sign_extended)
+
+    def test_sdo_write_unsigned64(self):
+        """Tests SDO writing to an UNSIGNED64 data object."""
+        self._sdo_write_read_round_trip(0x4004, 10, 0xCAFE00000000F00D)
+
+    def test_sdo_write_signed64(self):
+        """Tests SDO writing to an INTEGER64 data object (sign extension)."""
+        # CORead/COWrite.data is uint64 on the wire; encode signed value.
+        value = -(1 << 60)  # -2**60
+        sign_extended = value & ((1 << 64) - 1)
+        self._sdo_write_read_round_trip(0x4004, 11, sign_extended)
+
 
 class TestSDOMaster(unittest.TestCase):
     def run_node(self):
@@ -280,3 +303,18 @@ class TestPDO(unittest.TestCase):
 
     def test_pdo(self):
         self._pdo_round_trip(0x4000, 0x4001, 200)
+
+    def test_pdo_64(self):
+        """Tests UNSIGNED64 PDO round-trip via 0x4005 (RPDO) and 0x4006 (TPDO)."""
+        self._pdo_round_trip(0x4005, 0x4006, 0xCAFE00000000F00D)
+
+    @unittest.skip("48-bit RPDO is broken, see TODO in lely_driver_bridge.cpp")
+    def test_pdo_48(self):
+        """Tests INTEGER48 PDO round-trip via 0x4007 (RPDO) and 0x4008 (TPDO).
+
+        Uses a negative value to verify sign extension across the 6-byte wire
+        encoding.
+        """
+        value = -(1 << 40)
+        sign_extended = value & ((1 << 64) - 1)
+        self._pdo_round_trip(0x4007, 0x4008, sign_extended)

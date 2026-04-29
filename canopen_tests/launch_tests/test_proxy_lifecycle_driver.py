@@ -182,6 +182,39 @@ class TestSDO(unittest.TestCase):
         _change_state(self.node, Transition.TRANSITION_CLEANUP)
         print("*************************CLEANUP SUCCESSFUL*************************")
 
+    def test_full_cycle_sdo_64(self):
+        """Tests UNSIGNED64 and INTEGER64 SDO writes/reads in the lifecycle context."""
+        _change_state(self.node, Transition.TRANSITION_CONFIGURE)
+        _change_state(self.node, Transition.TRANSITION_ACTIVATE)
+
+        # UNSIGNED64 round-trip on 0x4004 sub10.
+        self._sdo_write_read_both(0x4004, 10, 0xCAFE00000000F00D)
+
+        # INTEGER64 round-trip on 0x4004 sub11 (verify sign extension).
+        # CORead/COWrite.data is uint64 on the wire; encode signed value.
+        value = -(1 << 60)
+        sign_extended = value & ((1 << 64) - 1)
+        self._sdo_write_read_both(0x4004, 11, sign_extended)
+
+        _change_state(self.node, Transition.TRANSITION_DEACTIVATE)
+        _change_state(self.node, Transition.TRANSITION_CLEANUP)
+
+    def test_full_cycle_sdo_48(self):
+        """Tests UNSIGNED48 and INTEGER48 SDO writes/reads in the lifecycle context."""
+        _change_state(self.node, Transition.TRANSITION_CONFIGURE)
+        _change_state(self.node, Transition.TRANSITION_ACTIVATE)
+
+        # UNSIGNED48 round-trip on 0x4004 sub8.
+        self._sdo_write_read_both(0x4004, 8, 0xCAFE0000F00D)
+
+        # INTEGER48 round-trip on 0x4004 sub9 (verify sign extension).
+        value = -(1 << 40)
+        sign_extended = value & ((1 << 64) - 1)
+        self._sdo_write_read_both(0x4004, 9, sign_extended)
+
+        _change_state(self.node, Transition.TRANSITION_DEACTIVATE)
+        _change_state(self.node, Transition.TRANSITION_CLEANUP)
+
 
 class TestPDO(unittest.TestCase):
     def run_node(self):
@@ -234,6 +267,4 @@ class TestPDO(unittest.TestCase):
         _change_state(self.node, Transition.TRANSITION_CLEANUP)
         print("*************************CLEANUP SUCCESSFUL*************************")
 
-        self.assertTrue(
-            got, f"Did not receive expected COData {pub_msg} on proxy_device_1/rpdo"
-        )
+        self.assertTrue(got, f"Did not receive expected COData {pub_msg} on proxy_device_1/rpdo")

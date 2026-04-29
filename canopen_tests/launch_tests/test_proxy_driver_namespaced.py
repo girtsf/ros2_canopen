@@ -242,9 +242,7 @@ class TestPDO(unittest.TestCase):
         pub_msg.subindex = 0
         pub_msg.data = 200
 
-        with self.node.expect_message(
-            "/test_ns/proxy_device_1/rpdo", COData, pub_msg
-        ) as waiter:
+        with self.node.expect_message("/test_ns/proxy_device_1/rpdo", COData, pub_msg) as waiter:
             self.node.publish_message(
                 "/test_ns/proxy_device_1/tpdo",
                 COData,

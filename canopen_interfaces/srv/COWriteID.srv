@@ -8,7 +8,7 @@ uint8 CANOPEN_DATATYPE_UINT32 = 0x07
 int8 nodeid
 uint16 index
 uint8 subindex
-uint32 data
+uint64 data
 # 8 = uint8_t, 16 = uint16_t, 32 = uint32_t
 uint8 canopen_datatype
 ---
