@@ -27,7 +27,41 @@ from rclpy.publisher import Publisher
 from rclpy.subscription import Subscription
 from rclpy.client import Client
 from rclpy.qos import QoSProfile
-from threading import Condition
+from threading import Condition, Event
+
+
+class _MessageWaiter:
+    """Subscription helper that signals when a specific message arrives.
+
+    The subscription is created synchronously in ``__init__`` and lives
+    until ``close()`` (or until used as a context manager). Use ``wait``
+    in the test thread to block until the expected message arrives or
+    the timeout elapses; assert on its return value.
+    """
+
+    def __init__(self, node: Node, topic: str, msg_type, expected):
+        self._node = node
+        self._expected = expected
+        self._received = Event()
+        # Larger depth so bursty publishers (e.g. proxy driver emitting 3
+        # PDOs per cycle) don't overwrite the message we're waiting for.
+        self._sub: Subscription = node.create_subscription(msg_type, topic, self._cb, 50)
+
+    def _cb(self, msg):
+        if msg == self._expected:
+            self._received.set()
+
+    def wait(self, timeout: float = 2.5) -> bool:
+        return self._received.wait(timeout=timeout)
+
+    def close(self):
+        self._node.destroy_subscription(self._sub)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        self.close()
 
 
 class Ros2ActiveIoHandler:
@@ -92,22 +126,14 @@ class LaunchTestNode(Node):
             process=process, expected_output=expected_output
         )
 
-    def subscribe_and_wait_for_message(self, topic: str, msg_type, msg, timeout: float = 2.5):
-        condition = Condition()
-        self.received = False
+    def expect_message(self, topic: str, msg_type, expected) -> _MessageWaiter:
+        """Subscribe to ``topic`` and return a waiter for ``expected``.
 
-        def callback(rec_msg):
-            with condition:
-                if not self.received:
-                    self.received = msg == rec_msg
-                if self.received:
-                    condition.notify()
-
-        subscription: Subscription = self.create_subscription(msg_type, topic, callback, 1)
-        with condition:
-            condition.wait(timeout=timeout)
-        self.destroy_subscription(subscription)
-        assert self.received, "Did not receive the expected message."
+        The subscription is live as soon as this returns, so the caller
+        can publish without a subscribe/publish race. Use as a context
+        manager or call ``waiter.close()`` to tear down.
+        """
+        return _MessageWaiter(self, topic, msg_type, expected)
 
     def call_service(
         self, service_name: str, srv_type, service_request, expected_response, timeout: float = 2.0
@@ -133,7 +159,25 @@ class LaunchTestNode(Node):
         assert res == expected_response, "Did not receive the expected response."
         self.destroy_client(client)
 
-    def publish_message(self, topic_name: str, topic_type, msg):
+    def publish_message(
+        self,
+        topic_name: str,
+        topic_type,
+        msg,
+        wait_for_subscribers_timeout: float = 0.0,
+    ):
+        """Publish a single message to ``topic_name``.
+
+        If ``wait_for_subscribers_timeout`` > 0, polls
+        ``Publisher.get_subscription_count()`` and waits up to that many
+        seconds for at least one matched subscriber before publishing.
+        Without this, the message can be lost between create_publisher
+        and DDS discovery of the existing subscriber.
+        """
         publisher = self.create_publisher(topic_type, topic_name, 10)
+        if wait_for_subscribers_timeout > 0.0:
+            deadline = time.time() + wait_for_subscribers_timeout
+            while publisher.get_subscription_count() == 0 and time.time() < deadline:
+                time.sleep(0.01)
         publisher.publish(msg)
         self.destroy_publisher(publisher)
