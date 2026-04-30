@@ -437,13 +437,18 @@ class TestPDO(unittest.TestCase):
         pub_msg.index = 0x4001
         pub_msg.subindex = 0
         pub_msg.data = 200
-        thread = threading.Thread(
-            target=self.node.subscribe_and_wait_for_message,
-            args=["proxy_device_1/rpdo", COData, pub_msg],
-        )
-        thread.start()
-        self.node.publish_message("proxy_device_1/tpdo", COData, msg)
-        time.sleep(0.1)
+
+        with self.node.expect_message("proxy_device_1/rpdo", COData, pub_msg) as waiter:
+            self.node.publish_message(
+                "proxy_device_1/tpdo", COData, msg, wait_for_subscribers_timeout=2.0
+            )
+            self.assertTrue(
+                waiter.wait(timeout=2.5),
+                f"Did not receive expected COData {pub_msg} on proxy_device_1/rpdo",
+            )
+        # Reset 0x4000 on the slave so subsequent SDO tests see the
+        # default value rather than 200 from above.
         msg.data = 0
-        self.node.publish_message("proxy_device_1/tpdo", COData, msg)
-        thread.join()
+        self.node.publish_message(
+            "proxy_device_1/tpdo", COData, msg, wait_for_subscribers_timeout=2.0
+        )

@@ -245,20 +245,24 @@ class TestPDO(unittest.TestCase):
         pub_msg.index = 0x4001
         pub_msg.subindex = 0
         pub_msg.data = 200
-        thread = threading.Thread(
-            target=self.node.subscribe_and_wait_for_message,
-            args=["proxy_device_1/rpdo", COData, pub_msg],
-        )
-        thread.start()
-        self.node.publish_message("proxy_device_1/tpdo", COData, msg)
-        time.sleep(0.1)
-        msg.data = 0
-        self.node.publish_message("proxy_device_1/tpdo", COData, msg)
-        thread.join()
 
+        with self.node.expect_message("proxy_device_1/rpdo", COData, pub_msg) as waiter:
+            self.node.publish_message(
+                "proxy_device_1/tpdo", COData, msg, wait_for_subscribers_timeout=2.0
+            )
+            got = waiter.wait(timeout=2.5)
+
+        # Run deactivate/cleanup regardless of round-trip success so the
+        # next test starts from a known unconfigured state. Assert PDO
+        # round-trip last so a PDO failure doesn't strand the device in
+        # ACTIVE and cascade into later tests.
         req.transition.id = Transition.TRANSITION_DEACTIVATE
         self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
         print("*************************DEACTIVATE SUCCESSFUL*************************")
         req.transition.id = Transition.TRANSITION_CLEANUP
         self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
         print("*************************CLEANUP SUCCESSFUL*************************")
+
+        self.assertTrue(
+            got, f"Did not receive expected COData {pub_msg} on proxy_device_1/rpdo"
+        )
