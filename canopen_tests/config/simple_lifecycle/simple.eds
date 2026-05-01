@@ -18,8 +18,8 @@ SimpleBootUpSlave=1
 Granularity=1
 DynamicChannelsSupported=0
 GroupMessaging=0
-NrOfRxPDO=1
-NrOfTxPDO=1
+NrOfRxPDO=3
+NrOfTxPDO=3
 LSS_Supported=1
 
 [DummyUsage]
@@ -49,7 +49,7 @@ SupportedObjects=3
 3=0x1018
 
 [OptionalObjects]
-SupportedObjects=11
+SupportedObjects=19
 1=0x1003
 2=0x1005
 3=0x1014
@@ -58,14 +58,29 @@ SupportedObjects=11
 6=0x1017
 7=0x1029
 8=0x1400
-9=0x1600
-10=0x1800
-11=0x1A00
+9=0x1401
+10=0x1402
+11=0x1600
+12=0x1601
+13=0x1602
+14=0x1800
+15=0x1801
+16=0x1802
+17=0x1A00
+18=0x1A01
+19=0x1A02
 
 [ManufacturerObjects]
-SupportedObjects=2
+SupportedObjects=9
 1=0x4000
 2=0x4001
+3=0x4002
+4=0x4003
+5=0x4004
+6=0x4005
+7=0x4006
+8=0x4007
+9=0x4008
 
 [1000]
 ParameterName=Device type
@@ -268,3 +283,321 @@ ParameterName=UNSIGNED32 sent from slave
 DataType=0x0007
 AccessType=rwr
 PDOMapping=1
+
+[4002]
+ParameterName=INTEGER32 test
+DataType=0x0004
+AccessType=rw
+
+[4003]
+ParameterName=INTEGER16 test
+DataType=0x0003
+AccessType=rw
+
+[4004]
+ParameterName=Test Data
+ObjectType=0x9
+SubNumber=0xC
+
+[4004sub0]
+ParameterName=Highest sub-index supported
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=11
+
+[4004sub1]
+ParameterName=BOOL test data
+ObjectType=0x7
+DataType=0x0001
+AccessType=rw
+
+[4004sub2]
+ParameterName=SIGNED8 test data
+ObjectType=0x7
+DataType=0x0002
+AccessType=rw
+
+[4004sub3]
+ParameterName=SIGNED16 test data
+ObjectType=0x7
+DataType=0x0003
+AccessType=rw
+
+[4004sub4]
+ParameterName=SIGNED32 test data
+ObjectType=0x7
+DataType=0x0004
+AccessType=rw
+
+[4004sub5]
+ParameterName=UNSIGNED8 test data
+ObjectType=0x7
+DataType=0x0005
+AccessType=rw
+
+[4004sub6]
+ParameterName=UNSIGNED16 test data
+ObjectType=0x7
+DataType=0x0006
+AccessType=rw
+
+[4004sub7]
+ParameterName=UNSIGNED32 test data
+ObjectType=0x7
+DataType=0x0007
+AccessType=rw
+
+[4004sub8]
+ParameterName=UNSIGNED48 test data
+ObjectType=0x7
+DataType=0x0019
+AccessType=rw
+
+[4004sub9]
+ParameterName=INTEGER48 test data
+ObjectType=0x7
+DataType=0x0013
+AccessType=rw
+
+[4004subA]
+ParameterName=UNSIGNED64 test data
+ObjectType=0x7
+DataType=0x001B
+AccessType=rw
+
+[4004subB]
+ParameterName=INTEGER64 test data
+ObjectType=0x7
+DataType=0x0015
+AccessType=rw
+
+[4005]
+ParameterName=UNSIGNED64 received by slave
+DataType=0x001B
+AccessType=rww
+PDOMapping=1
+
+[4006]
+ParameterName=UNSIGNED64 sent from slave
+DataType=0x001B
+AccessType=rwr
+PDOMapping=1
+
+[4007]
+ParameterName=INTEGER48 received by slave
+DataType=0x0013
+AccessType=rww
+PDOMapping=1
+
+[4008]
+ParameterName=INTEGER48 sent from slave
+DataType=0x0013
+AccessType=rwr
+PDOMapping=1
+
+[1401]
+SubNumber=6
+ParameterName=RPDO communication parameter
+ObjectType=0x09
+
+[1401sub0]
+ParameterName=highest sub-index supported
+DataType=0x0005
+AccessType=const
+DefaultValue=5
+
+[1401sub1]
+ParameterName=COB-ID used by RPDO
+DataType=0x0007
+AccessType=rw
+DefaultValue=$NODEID+0x300
+
+[1401sub2]
+ParameterName=transmission type
+DataType=0x0005
+AccessType=rw
+DefaultValue=0xFF
+
+[1401sub3]
+ParameterName=inhibit time
+DataType=0x0006
+AccessType=rw
+
+[1401sub4]
+ParameterName=compatibility entry
+DataType=0x0005
+AccessType=rw
+
+[1401sub5]
+ParameterName=event-timer
+DataType=0x0006
+AccessType=rw
+
+[1601]
+ParameterName=RPDO mapping parameter
+ObjectType=0x08
+DataType=0x0007
+AccessType=rw
+CompactSubObj=1
+
+[1601Value]
+NrOfEntries=1
+1=0x40050040
+
+[1801]
+SubNumber=7
+ParameterName=TPDO communication parameter
+ObjectType=0x09
+
+[1801sub0]
+ParameterName=highest sub-index supported
+DataType=0x0005
+AccessType=const
+DefaultValue=6
+
+[1801sub1]
+ParameterName=COB-ID used by TPDO
+DataType=0x0007
+AccessType=rw
+DefaultValue=$NODEID+0x280
+
+[1801sub2]
+ParameterName=transmission type
+DataType=0x0005
+AccessType=rw
+DefaultValue=0xFF
+
+[1801sub3]
+ParameterName=inhibit time
+DataType=0x0006
+AccessType=rw
+
+[1801sub4]
+ParameterName=reserved
+DataType=0x0005
+AccessType=rw
+
+[1801sub5]
+ParameterName=event timer
+DataType=0x0006
+AccessType=rw
+
+[1801sub6]
+ParameterName=SYNC start value
+DataType=0x0005
+AccessType=rw
+
+[1A01]
+ParameterName=TPDO mapping parameter
+ObjectType=0x08
+DataType=0x0007
+AccessType=rw
+CompactSubObj=1
+
+[1A01Value]
+NrOfEntries=1
+1=0x40060040
+
+[1402]
+SubNumber=6
+ParameterName=RPDO communication parameter
+ObjectType=0x09
+
+[1402sub0]
+ParameterName=highest sub-index supported
+DataType=0x0005
+AccessType=const
+DefaultValue=5
+
+[1402sub1]
+ParameterName=COB-ID used by RPDO
+DataType=0x0007
+AccessType=rw
+DefaultValue=$NODEID+0x400
+
+[1402sub2]
+ParameterName=transmission type
+DataType=0x0005
+AccessType=rw
+DefaultValue=0xFF
+
+[1402sub3]
+ParameterName=inhibit time
+DataType=0x0006
+AccessType=rw
+
+[1402sub4]
+ParameterName=compatibility entry
+DataType=0x0005
+AccessType=rw
+
+[1402sub5]
+ParameterName=event-timer
+DataType=0x0006
+AccessType=rw
+
+[1602]
+ParameterName=RPDO mapping parameter
+ObjectType=0x08
+DataType=0x0007
+AccessType=rw
+CompactSubObj=1
+
+[1602Value]
+NrOfEntries=1
+1=0x40070030
+
+[1802]
+SubNumber=7
+ParameterName=TPDO communication parameter
+ObjectType=0x09
+
+[1802sub0]
+ParameterName=highest sub-index supported
+DataType=0x0005
+AccessType=const
+DefaultValue=6
+
+[1802sub1]
+ParameterName=COB-ID used by TPDO
+DataType=0x0007
+AccessType=rw
+DefaultValue=$NODEID+0x380
+
+[1802sub2]
+ParameterName=transmission type
+DataType=0x0005
+AccessType=rw
+DefaultValue=0xFF
+
+[1802sub3]
+ParameterName=inhibit time
+DataType=0x0006
+AccessType=rw
+
+[1802sub4]
+ParameterName=reserved
+DataType=0x0005
+AccessType=rw
+
+[1802sub5]
+ParameterName=event timer
+DataType=0x0006
+AccessType=rw
+
+[1802sub6]
+ParameterName=SYNC start value
+DataType=0x0005
+AccessType=rw
+
+[1A02]
+ParameterName=TPDO mapping parameter
+ObjectType=0x08
+DataType=0x0007
+AccessType=rw
+CompactSubObj=1
+
+[1A02Value]
+NrOfEntries=1
+1=0x40080030

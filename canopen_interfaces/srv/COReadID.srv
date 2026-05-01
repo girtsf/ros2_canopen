@@ -12,4 +12,4 @@ uint8 subindex
 uint8 canopen_datatype
 ---
 bool success
-uint32 data
+uint64 data

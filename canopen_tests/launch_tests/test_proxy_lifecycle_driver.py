@@ -13,7 +13,6 @@
 #    limitations under the License.
 
 import os
-from time import sleep
 import time
 import pytest
 from ament_index_python import get_package_share_directory
@@ -30,6 +29,13 @@ from lifecycle_msgs.srv import ChangeState
 import unittest
 from canopen_interfaces.srv import CORead, COWrite
 from canopen_interfaces.msg import COData
+
+
+def _change_state(node, transition_id):
+    """Trigger a lifecycle transition via the lifecycle_manager."""
+    req = ChangeState.Request(transition=Transition(id=transition_id))
+    res = ChangeState.Response(success=True)
+    node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
 
 
 @pytest.mark.rostest
@@ -73,49 +79,28 @@ class TestLifecycle(unittest.TestCase):
         rclpy.shutdown()
 
     def test_configure_unconfigure(self):
-        req = ChangeState.Request()
-        req.transition.id = Transition.TRANSITION_CONFIGURE
-
-        res = ChangeState.Response()
-        res.success = True
-
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
-
-        req.transition.id = Transition.TRANSITION_CLEANUP
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_CONFIGURE)
+        _change_state(self.node, Transition.TRANSITION_CLEANUP)
 
     def test_full_cycle(self):
-        req = ChangeState.Request()
-
-        res = ChangeState.Response()
-        res.success = True
-
-        req.transition.id = Transition.TRANSITION_CONFIGURE
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_CONFIGURE)
         print("*************************CONFIGURE SUCCESSFUL*************************")
-        req.transition.id = Transition.TRANSITION_ACTIVATE
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_ACTIVATE)
         print("*************************ACTIVATE SUCCESSFUL*************************")
 
-        req.transition.id = Transition.TRANSITION_DEACTIVATE
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_DEACTIVATE)
         print("*************************DEACTIVATE SUCCESSFUL*************************")
-        req.transition.id = Transition.TRANSITION_CLEANUP
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_CLEANUP)
         print("*************************CLEANUP SUCCESSFUL*************************")
 
-        req.transition.id = Transition.TRANSITION_CONFIGURE
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_CONFIGURE)
         print("*************************CONFIGURE SUCCESSFUL*************************")
-        req.transition.id = Transition.TRANSITION_ACTIVATE
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_ACTIVATE)
         print("*************************ACTIVATE SUCCESSFUL*************************")
 
-        req.transition.id = Transition.TRANSITION_DEACTIVATE
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_DEACTIVATE)
         print("*************************DEACTIVATE SUCCESSFUL*************************")
-        req.transition.id = Transition.TRANSITION_CLEANUP
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_CLEANUP)
         print("*************************CLEANUP SUCCESSFUL*************************")
 
 
@@ -139,68 +124,96 @@ class TestSDO(unittest.TestCase):
         cls.node.destroy_node()
         rclpy.shutdown()
 
+    def _sdo_write_read_both(self, index, subindex, data):
+        """Write data to (index, subindex) on both proxies, then read it back."""
+        write_req = COWrite.Request()
+        write_req.index = index
+        write_req.subindex = subindex
+        write_req.data = data
+        write_res = COWrite.Response()
+        write_res.success = True
+
+        read_req = CORead.Request()
+        read_req.index = index
+        read_req.subindex = subindex
+        read_res = CORead.Response()
+        read_res.success = True
+        read_res.data = data
+
+        self.node.call_service("proxy_device_1/sdo_write", COWrite, write_req, write_res)
+        self.node.call_service("proxy_device_2/sdo_write", COWrite, write_req, write_res)
+        self.node.call_service("proxy_device_1/sdo_read", CORead, read_req, read_res)
+        self.node.call_service("proxy_device_2/sdo_read", CORead, read_req, read_res)
+
+    def _sdo_read_both(self, index, subindex, expected):
+        """Read (index, subindex) on both proxies, expecting the given value."""
+        read_req = CORead.Request()
+        read_req.index = index
+        read_req.subindex = subindex
+        read_res = CORead.Response()
+        read_res.success = True
+        read_res.data = expected
+
+        self.node.call_service("proxy_device_1/sdo_read", CORead, read_req, read_res)
+        self.node.call_service("proxy_device_2/sdo_read", CORead, read_req, read_res)
+
     def test_full_cycle_sdo(self):
-        req = ChangeState.Request()
-
-        res = ChangeState.Response()
-        res.success = True
-
-        req.transition.id = Transition.TRANSITION_CONFIGURE
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_CONFIGURE)
         print("*************************CONFIGURE SUCCESSFUL*************************")
-        req.transition.id = Transition.TRANSITION_ACTIVATE
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_ACTIVATE)
         print("*************************ACTIVATE SUCCESSFUL*************************")
 
-        data = 100
+        self._sdo_write_read_both(0x4000, 0, 100)
 
-        readreq = CORead.Request()
-        readreq.index = 0x4000
-        readreq.subindex = 0x00
-
-        readres = CORead.Response()
-        readres.success = True
-        readres.data = data
-
-        writereq = COWrite.Request()
-        writereq.index = 0x4000
-        writereq.subindex = 0x00
-        writereq.data = data
-
-        writeres = COWrite.Response()
-        writeres.success = True
-
-        self.node.call_service("proxy_device_1/sdo_write", COWrite, writereq, writeres)
-        self.node.call_service("proxy_device_2/sdo_write", COWrite, writereq, writeres)
-        self.node.call_service("proxy_device_1/sdo_read", CORead, readreq, readres)
-        self.node.call_service("proxy_device_2/sdo_read", CORead, readreq, readres)
-        data = 0
-        self.node.call_service("proxy_device_1/sdo_write", COWrite, writereq, writeres)
-        self.node.call_service("proxy_device_2/sdo_write", COWrite, writereq, writeres)
-
-        req.transition.id = Transition.TRANSITION_DEACTIVATE
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_DEACTIVATE)
         print("*************************DEACTIVATE SUCCESSFUL*************************")
-        req.transition.id = Transition.TRANSITION_CLEANUP
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_CLEANUP)
         print("*************************CLEANUP SUCCESSFUL*************************")
 
-        req.transition.id = Transition.TRANSITION_CONFIGURE
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_CONFIGURE)
         print("*************************CONFIGURE SUCCESSFUL*************************")
-        req.transition.id = Transition.TRANSITION_ACTIVATE
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_ACTIVATE)
         print("*************************ACTIVATE SUCCESSFUL*************************")
 
-        self.node.call_service("proxy_device_1/sdo_read", CORead, readreq, readres)
-        self.node.call_service("proxy_device_2/sdo_read", CORead, readreq, readres)
+        self._sdo_read_both(0x4000, 0, 100)
 
-        req.transition.id = Transition.TRANSITION_DEACTIVATE
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_DEACTIVATE)
         print("*************************DEACTIVATE SUCCESSFUL*************************")
-        req.transition.id = Transition.TRANSITION_CLEANUP
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_CLEANUP)
         print("*************************CLEANUP SUCCESSFUL*************************")
+
+    def test_full_cycle_sdo_64(self):
+        """Tests UNSIGNED64 and INTEGER64 SDO writes/reads in the lifecycle context."""
+        _change_state(self.node, Transition.TRANSITION_CONFIGURE)
+        _change_state(self.node, Transition.TRANSITION_ACTIVATE)
+
+        # UNSIGNED64 round-trip on 0x4004 sub10.
+        self._sdo_write_read_both(0x4004, 10, 0xCAFE00000000F00D)
+
+        # INTEGER64 round-trip on 0x4004 sub11 (verify sign extension).
+        # CORead/COWrite.data is uint64 on the wire; encode signed value.
+        value = -(1 << 60)
+        sign_extended = value & ((1 << 64) - 1)
+        self._sdo_write_read_both(0x4004, 11, sign_extended)
+
+        _change_state(self.node, Transition.TRANSITION_DEACTIVATE)
+        _change_state(self.node, Transition.TRANSITION_CLEANUP)
+
+    def test_full_cycle_sdo_48(self):
+        """Tests UNSIGNED48 and INTEGER48 SDO writes/reads in the lifecycle context."""
+        _change_state(self.node, Transition.TRANSITION_CONFIGURE)
+        _change_state(self.node, Transition.TRANSITION_ACTIVATE)
+
+        # UNSIGNED48 round-trip on 0x4004 sub8.
+        self._sdo_write_read_both(0x4004, 8, 0xCAFE0000F00D)
+
+        # INTEGER48 round-trip on 0x4004 sub9 (verify sign extension).
+        value = -(1 << 40)
+        sign_extended = value & ((1 << 64) - 1)
+        self._sdo_write_read_both(0x4004, 9, sign_extended)
+
+        _change_state(self.node, Transition.TRANSITION_DEACTIVATE)
+        _change_state(self.node, Transition.TRANSITION_CLEANUP)
 
 
 class TestPDO(unittest.TestCase):
@@ -224,16 +237,9 @@ class TestPDO(unittest.TestCase):
         rclpy.shutdown()
 
     def test_full_cycle_sdo(self):
-        req = ChangeState.Request()
-
-        res = ChangeState.Response()
-        res.success = True
-
-        req.transition.id = Transition.TRANSITION_CONFIGURE
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_CONFIGURE)
         print("*************************CONFIGURE SUCCESSFUL*************************")
-        req.transition.id = Transition.TRANSITION_ACTIVATE
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_ACTIVATE)
         print("*************************ACTIVATE SUCCESSFUL*************************")
 
         msg = COData()
@@ -256,13 +262,9 @@ class TestPDO(unittest.TestCase):
         # next test starts from a known unconfigured state. Assert PDO
         # round-trip last so a PDO failure doesn't strand the device in
         # ACTIVE and cascade into later tests.
-        req.transition.id = Transition.TRANSITION_DEACTIVATE
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_DEACTIVATE)
         print("*************************DEACTIVATE SUCCESSFUL*************************")
-        req.transition.id = Transition.TRANSITION_CLEANUP
-        self.node.call_service("/lifecycle_manager/change_state", ChangeState, req, res)
+        _change_state(self.node, Transition.TRANSITION_CLEANUP)
         print("*************************CLEANUP SUCCESSFUL*************************")
 
-        self.assertTrue(
-            got, f"Did not receive expected COData {pub_msg} on proxy_device_1/rpdo"
-        )
+        self.assertTrue(got, f"Did not receive expected COData {pub_msg} on proxy_device_1/rpdo")

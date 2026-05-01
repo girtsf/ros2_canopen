@@ -732,8 +732,12 @@ public:
   template <typename T>
   void submit_write(COData data)
   {
-    T value = 0;
-    std::memcpy(&value, &data.data_, sizeof(value));
+    // Direct-init from the underlying integer instead of memcpy: memcpy into
+    // canopen_alias (int48_t / uint48_t) is non-trivial and trips
+    // -Wclass-memaccess. Parens are direct-init so the alias's explicit ctor
+    // is allowed; for basic types this is equivalent to the prior memcpy on
+    // little-endian targets.
+    T value(data.data_);
 
     this->SubmitWrite(
       data.index_, data.subindex_, value,
@@ -746,8 +750,14 @@ public:
         }
         else
         {
+          // Use the byte-buffer setVal with the wire size from canopen_traits<T>.
+          // The templated setVal<T> at the co/dev layer dispatches via
+          // co_type_traits_T<T> which has no specialization for the
+          // canopen_alias int48_t / uint48_t types; this overload works for both
+          // basic and alias types.
           std::scoped_lock<std::mutex> lck(this->dictionary_mutex_);
-          this->dictionary_->setVal<T>(idx, subidx, value);
+          this->dictionary_->setVal(
+            idx, subidx, &value, lely::canopen::canopen_traits<T>::size(value));
           this->sdo_write_data_promise->set_value(true);
         }
         std::unique_lock<std::mutex> lck(this->sdo_mutex);
@@ -772,7 +782,8 @@ public:
         else
         {
           std::scoped_lock<std::mutex> lck(this->dictionary_mutex_);
-          this->dictionary_->setVal<T>(idx, subidx, value);
+          this->dictionary_->setVal(
+            idx, subidx, &value, lely::canopen::canopen_traits<T>::size(value));
           COData d = {idx, subidx, 0};
           std::memcpy(&d.data_, &value, sizeof(T));
           this->sdo_read_data_promise->set_value(d);
@@ -819,6 +830,10 @@ public:
     {
       value = this->dictionary_->getVal<CO_DEFTYPE_UNSIGNED32>(index, subindex);
     }
+    if (typeid(T) == typeid(lely::canopen::uint48_t))
+    {
+      value = this->dictionary_->getVal<CO_DEFTYPE_UNSIGNED48>(index, subindex);
+    }
     if (typeid(T) == typeid(int8_t))
     {
       value = this->dictionary_->getVal<CO_DEFTYPE_INTEGER8>(index, subindex);
@@ -830,6 +845,18 @@ public:
     if (typeid(T) == typeid(int32_t))
     {
       value = this->dictionary_->getVal<CO_DEFTYPE_INTEGER32>(index, subindex);
+    }
+    if (typeid(T) == typeid(lely::canopen::int48_t))
+    {
+      value = this->dictionary_->getVal<CO_DEFTYPE_INTEGER48>(index, subindex);
+    }
+    if (typeid(T) == typeid(uint64_t))
+    {
+      value = this->dictionary_->getVal<CO_DEFTYPE_UNSIGNED64>(index, subindex);
+    }
+    if (typeid(T) == typeid(int64_t))
+    {
+      value = this->dictionary_->getVal<CO_DEFTYPE_INTEGER64>(index, subindex);
     }
 
     return value;

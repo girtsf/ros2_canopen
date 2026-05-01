@@ -27,7 +27,7 @@ struct COData
 public:
   uint16_t index_;
   uint8_t subindex_;
-  uint32_t data_;
+  uint64_t data_;
 };
 
 struct COEmcy

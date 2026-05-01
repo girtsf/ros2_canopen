@@ -55,8 +55,9 @@ auto makeMemcpyCaster(const SourceType & source)
   };
 }
 
-const std::vector<std::string> SUPPORTED_TYPES = {"bool",     "int8_t",  "uint8_t", "int16_t",
-                                                  "uint16_t", "int32_t", "uint32_t"};
+const std::vector<std::string> SUPPORTED_TYPES = {"bool",     "int8_t",  "uint8_t",  "int16_t",
+                                                  "uint16_t", "int32_t", "uint32_t", "int48_t",
+                                                  "uint48_t", "int64_t", "uint64_t"};
 
 // needed auxiliary struct for ros2 control double registration
 struct Ros2ControlCOData
@@ -144,6 +145,31 @@ struct RORos2ControlCOData : public Ros2ControlCOData
       std::memcpy(&uint32_data, &original_data.data_, sizeof(uint32_t));
       data = static_cast<double>(uint32_data);
     }
+    else if (co_type == "int48_t")
+    {
+      // INTEGER48 wire data is sign-extended to int64 by the driver layer.
+      int64_t int48_data;
+      std::memcpy(&int48_data, &original_data.data_, sizeof(int64_t));
+      data = static_cast<double>(int48_data);
+    }
+    else if (co_type == "uint48_t")
+    {
+      uint64_t uint48_data;
+      std::memcpy(&uint48_data, &original_data.data_, sizeof(uint64_t));
+      data = static_cast<double>(uint48_data);
+    }
+    else if (co_type == "int64_t")
+    {
+      int64_t int64_data;
+      std::memcpy(&int64_data, &original_data.data_, sizeof(int64_t));
+      data = static_cast<double>(int64_data);
+    }
+    else if (co_type == "uint64_t")
+    {
+      uint64_t uint64_data;
+      std::memcpy(&uint64_data, &original_data.data_, sizeof(uint64_t));
+      data = static_cast<double>(uint64_data);
+    }
     else
     {
       RCLCPP_WARN(
@@ -214,15 +240,45 @@ struct WORos2ControlCoData : public Ros2ControlCOData
       uint32_t uint32_data = static_cast<uint32_t>(data);
       std::memcpy(&original_data.data_, &uint32_data, sizeof(uint32_t));
     }
+    else if (co_type == "int48_t")
+    {
+      // Sign-extend the 48-bit value into the int64_t store so the driver
+      // layer can serialize 6 bytes correctly for negative values.
+      int64_t int48_data = static_cast<int64_t>(data);
+      if (int48_data & (INT64_C(1) << 47))
+      {
+        int48_data |= ~((INT64_C(1) << 48) - 1);
+      }
+      else
+      {
+        int48_data &= (INT64_C(1) << 48) - 1;
+      }
+      std::memcpy(&original_data.data_, &int48_data, sizeof(int64_t));
+    }
+    else if (co_type == "uint48_t")
+    {
+      uint64_t uint48_data = static_cast<uint64_t>(data) & ((UINT64_C(1) << 48) - 1);
+      std::memcpy(&original_data.data_, &uint48_data, sizeof(uint64_t));
+    }
+    else if (co_type == "int64_t")
+    {
+      int64_t int64_data = static_cast<int64_t>(data);
+      std::memcpy(&original_data.data_, &int64_data, sizeof(int64_t));
+    }
+    else if (co_type == "uint64_t")
+    {
+      uint64_t uint64_data = static_cast<uint64_t>(data);
+      std::memcpy(&original_data.data_, &uint64_data, sizeof(uint64_t));
+    }
     else
     {
       RCLCPP_WARN(
         rclcpp::get_logger("rclcpp"),
-        "Type '%s' not yet supported. Trying to cast directly to uint32_t. This might cause "
+        "Type '%s' not yet supported. Trying to cast directly to uint64_t. This might cause "
         "erroneous data! Please contribute or by maintainers a cookie and hope they implement it "
         "for you!",
         co_type.c_str());
-      original_data.data_ = static_cast<uint32_t>(data);
+      original_data.data_ = static_cast<uint64_t>(data);
     }
   }
 };

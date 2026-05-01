@@ -15,6 +15,8 @@
 #ifndef NODE_CANOPEN_PROXY_DRIVER_IMPL_HPP_
 #define NODE_CANOPEN_PROXY_DRIVER_IMPL_HPP_
 
+#include <cinttypes>
+
 #include "canopen_core/driver_error.hpp"
 #include "canopen_proxy_driver/node_interfaces/node_canopen_proxy_driver.hpp"
 
@@ -183,7 +185,8 @@ bool NodeCanopenProxyDriver<NODETYPE>::tpdo_transmit(ros2_canopen::COData & data
   if (this->activated_.load())
   {
     RCLCPP_DEBUG(
-      this->node_->get_logger(), "Node ID 0x%X: Transmit PDO index %x, subindex %hhu, data %d",
+      this->node_->get_logger(),
+      "Node ID 0x%X: Transmit PDO index %x, subindex %hhu, data %" PRIu64,
       this->lely_driver_->get_id(), data.index_, data.subindex_, data.data_);
     this->lely_driver_->tpdo_transmit(data);
     return true;
@@ -305,7 +308,8 @@ bool NodeCanopenProxyDriver<NODETYPE>::sdo_write(ros2_canopen::COData & data)
   if (this->activated_.load())
   {
     RCLCPP_INFO(
-      this->node_->get_logger(), "Slave 0x%X: SDO Write Call index=0x%X subindex=%hhu data=%u",
+      this->node_->get_logger(),
+      "Slave 0x%X: SDO Write Call index=0x%X subindex=%hhu data=%" PRIu64,
       this->lely_driver_->get_id(), data.index_, data.subindex_, data.data_);
 
     // Only allow one SDO request concurrently
